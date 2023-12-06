@@ -4,6 +4,7 @@ using NPOI.SS.UserModel;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace EstadosApi.Controllers
 {
@@ -63,60 +64,93 @@ namespace EstadosApi.Controllers
             }
         }
 
-[HttpGet("BusquedaCP/{CriterioBusqueda}")]
-public ActionResult BuscarCodigoPostalPorCoincidencia(string CriterioBusqueda, int? limite = null)
-{
-    HashSet<string> CodigosPostalesEncontrados = new HashSet<string>();
-
-    using (FileStream ArchivoDeListaDirecciones = new FileStream(RutaDeListaDeDirecciones, FileMode.Open, FileAccess.Read))
-    {
-        var LibroDireccionesPorEstado = new HSSFWorkbook(ArchivoDeListaDirecciones);
-        for (int NumeroDeSeccionDelLibro = 1; NumeroDeSeccionDelLibro < LibroDireccionesPorEstado.NumberOfSheets; NumeroDeSeccionDelLibro++)
+        [HttpGet("BusquedaCP/{CriterioBusqueda}")]
+        public ActionResult BuscarCodigoPostalPorCoincidencia(string CriterioBusqueda, int? limite = null)
         {
-            var Seccion = LibroDireccionesPorEstado.GetSheetAt(NumeroDeSeccionDelLibro);
-            var ColumnaDeCodigoPostal = ObtenerNombreDelCampoDeDireccion(Seccion, "d_codigo");
+            HashSet<string> CodigosPostalesEncontrados = new HashSet<string>();
 
-            for (int NumeroDeFilaEnSeccion = 1; NumeroDeFilaEnSeccion <= Seccion.LastRowNum; NumeroDeFilaEnSeccion++)
+            using (FileStream ArchivoDeListaDirecciones = new FileStream(RutaDeListaDeDirecciones, FileMode.Open, FileAccess.Read))
             {
-                var ValorEnCeldaCodigoPostal = Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ColumnaDeCodigoPostal)?.ToString();
-                if (ValorEnCeldaCodigoPostal != null && ValorEnCeldaCodigoPostal.Contains(CriterioBusqueda, StringComparison.OrdinalIgnoreCase))
+                var LibroDireccionesPorEstado = new HSSFWorkbook(ArchivoDeListaDirecciones);
+                for (int NumeroDeSeccionDelLibro = 1; NumeroDeSeccionDelLibro < LibroDireccionesPorEstado.NumberOfSheets; NumeroDeSeccionDelLibro++)
                 {
-                    CodigosPostalesEncontrados.Add(ValorEnCeldaCodigoPostal);
-                }
+                    var Seccion = LibroDireccionesPorEstado.GetSheetAt(NumeroDeSeccionDelLibro);
+                    var ColumnaDeCodigoPostal = ObtenerNombreDelCampoDeDireccion(Seccion, "d_codigo");
 
-                // Limitar el número de resultados si se especifica la variable "limite"
-                if (limite.HasValue && CodigosPostalesEncontrados.Count >= limite)
-                {
-                    break;
+                    for (int NumeroDeFilaEnSeccion = 1; NumeroDeFilaEnSeccion <= Seccion.LastRowNum; NumeroDeFilaEnSeccion++)
+                    {
+                        var ValorEnCeldaCodigoPostal = Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ColumnaDeCodigoPostal)?.ToString();
+                        if (ValorEnCeldaCodigoPostal != null && ValorEnCeldaCodigoPostal.Contains(CriterioBusqueda, StringComparison.OrdinalIgnoreCase))
+                        {
+                            CodigosPostalesEncontrados.Add(ValorEnCeldaCodigoPostal);
+                        }
+                        if (limite.HasValue && CodigosPostalesEncontrados.Count >= limite)
+                        {
+                            break;
+                        }
+                    }
+                    if (limite.HasValue && CodigosPostalesEncontrados.Count >= limite)
+                    {
+                        break;
+                    }
                 }
             }
 
-            // Limitar el número de resultados si se especifica la variable "limite"
-            if (limite.HasValue && CodigosPostalesEncontrados.Count >= limite)
+            if (CodigosPostalesEncontrados.Count > 0)
             {
-                break;
+                return Ok(new
+                {
+                    response = new
+                    {
+                        cp = CodigosPostalesEncontrados.ToList()
+                    }
+                });
+            }
+            else
+            {
+                return NotFound($"No se encontraron códigos postales para el criterio de búsqueda {CriterioBusqueda}");
             }
         }
-    }
 
-    if (CodigosPostalesEncontrados.Count > 0)
-    {
-        return Ok(new
+        [HttpGet("get_estados")]
+        public ActionResult ObtenerEstados()
         {
-            error = false,
-            code_error = 0,
-            error_message = (string)null,
-            response = new
+            HashSet<string> EstadosEncontrados = new HashSet<string>();
+
+            using (FileStream ArchivoDeListaDirecciones = new FileStream(RutaDeListaDeDirecciones, FileMode.Open, FileAccess.Read))
             {
-                cp = CodigosPostalesEncontrados.ToList() // Convertir el HashSet a una lista para mantener el formato JSON
+                var LibroDireccionesPorEstado = new HSSFWorkbook(ArchivoDeListaDirecciones);
+                for (int NumeroDeSeccionDelLibro = 1; NumeroDeSeccionDelLibro < LibroDireccionesPorEstado.NumberOfSheets; NumeroDeSeccionDelLibro++)
+                {
+                    var Seccion = LibroDireccionesPorEstado.GetSheetAt(NumeroDeSeccionDelLibro);
+                    var ColumnaDeEstado = ObtenerNombreDelCampoDeDireccion(Seccion, "d_estado");
+
+                    for (int NumeroDeFilaEnSeccion = 1; NumeroDeFilaEnSeccion <= Seccion.LastRowNum; NumeroDeFilaEnSeccion++)
+                    {
+                        var ValorEnCeldaEstado = Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ColumnaDeEstado)?.ToString();
+                        if (!string.IsNullOrEmpty(ValorEnCeldaEstado))
+                        {
+                            EstadosEncontrados.Add(ValorEnCeldaEstado);
+                        }
+                    }
+                }
             }
-        });
-    }
-    else
-    {
-        return NotFound($"No se encontraron códigos postales para el criterio de búsqueda {CriterioBusqueda}");
-    }
-}
+
+            if (EstadosEncontrados.Count > 0)
+            {
+                return Ok(new
+                {
+                    response = new
+                    {
+                        estado = EstadosEncontrados.ToList()
+                    }
+                });
+            }
+            else
+            {
+                return NotFound("No se encontraron estados en el archivo.");
+            }
+        }
 
         private List<Dictionary<string, object>> AgruparPorTipoAsentamiento(List<Dictionary<string, string>> direcciones)
         {

@@ -1,0 +1,9 @@
+https://localhost:7288/Direcciones/get_estados
+
+https://localhost:7288/Direcciones/CodigoPostal/{CodigoPostalParametro}
+
+https://localhost:7288/Direcciones/CodigoPostal/{CodigoPostalParametro}?AgruparPorTipoDeAsentamiento=true
+
+https://localhost:7288/Direcciones/BusquedaCP/{CriterioBusqueda}
+
+https://localhost:7288/Direcciones/BusquedaCP/{CriterioBusqueda}?limite={Numero}
