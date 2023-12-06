@@ -17,7 +17,7 @@ namespace EstadosApi.Controllers
         public ActionResult ObtenerDireccionPorCodigoPostal(string CodigoPostalParametro, bool AgruparPorTipoDeAsentamiento = false)
         {
             List<Dictionary<string, string>> DireccionesEncontradas = new List<Dictionary<string, string>>();
-            
+
             using (FileStream ArchivoDeListaDirecciones = new FileStream(RutaDeListaDeDirecciones, FileMode.Open, FileAccess.Read))
             {
                 var LibroDireccionesPorEstado = new HSSFWorkbook(ArchivoDeListaDirecciones);
@@ -62,6 +62,62 @@ namespace EstadosApi.Controllers
                 return NotFound($"No se encontraron direcciones para el código {CodigoPostalParametro}");
             }
         }
+
+[HttpGet("BusquedaCP/{CriterioBusqueda}")]
+public ActionResult BuscarCodigoPostalPorCoincidencia(string CriterioBusqueda, int? limite = null)
+{
+    HashSet<string> CodigosPostalesEncontrados = new HashSet<string>();
+
+    using (FileStream ArchivoDeListaDirecciones = new FileStream(RutaDeListaDeDirecciones, FileMode.Open, FileAccess.Read))
+    {
+        var LibroDireccionesPorEstado = new HSSFWorkbook(ArchivoDeListaDirecciones);
+        for (int NumeroDeSeccionDelLibro = 1; NumeroDeSeccionDelLibro < LibroDireccionesPorEstado.NumberOfSheets; NumeroDeSeccionDelLibro++)
+        {
+            var Seccion = LibroDireccionesPorEstado.GetSheetAt(NumeroDeSeccionDelLibro);
+            var ColumnaDeCodigoPostal = ObtenerNombreDelCampoDeDireccion(Seccion, "d_codigo");
+
+            for (int NumeroDeFilaEnSeccion = 1; NumeroDeFilaEnSeccion <= Seccion.LastRowNum; NumeroDeFilaEnSeccion++)
+            {
+                var ValorEnCeldaCodigoPostal = Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ColumnaDeCodigoPostal)?.ToString();
+                if (ValorEnCeldaCodigoPostal != null && ValorEnCeldaCodigoPostal.Contains(CriterioBusqueda, StringComparison.OrdinalIgnoreCase))
+                {
+                    CodigosPostalesEncontrados.Add(ValorEnCeldaCodigoPostal);
+                }
+
+                // Limitar el número de resultados si se especifica la variable "limite"
+                if (limite.HasValue && CodigosPostalesEncontrados.Count >= limite)
+                {
+                    break;
+                }
+            }
+
+            // Limitar el número de resultados si se especifica la variable "limite"
+            if (limite.HasValue && CodigosPostalesEncontrados.Count >= limite)
+            {
+                break;
+            }
+        }
+    }
+
+    if (CodigosPostalesEncontrados.Count > 0)
+    {
+        return Ok(new
+        {
+            error = false,
+            code_error = 0,
+            error_message = (string)null,
+            response = new
+            {
+                cp = CodigosPostalesEncontrados.ToList() // Convertir el HashSet a una lista para mantener el formato JSON
+            }
+        });
+    }
+    else
+    {
+        return NotFound($"No se encontraron códigos postales para el criterio de búsqueda {CriterioBusqueda}");
+    }
+}
+
         private List<Dictionary<string, object>> AgruparPorTipoAsentamiento(List<Dictionary<string, string>> direcciones)
         {
             var agrupadas = new List<Dictionary<string, object>>();
@@ -93,6 +149,7 @@ namespace EstadosApi.Controllers
 
             return agrupadas;
         }
+
         private int ObtenerNombreDelCampoDeDireccion(ISheet Secciones, string NombreColumna)
         {
             var FilaConLosNombresDeCampos = Secciones.GetRow(0);
