@@ -1,17 +1,23 @@
 using Microsoft.AspNetCore.Mvc;
 using NPOI.HSSF.UserModel;
 using NPOI.SS.UserModel;
+using System;
+using System.Collections.Generic;
+using System.IO;
+
 namespace EstadosApi.Controllers
 {
     [ApiController]
     [Route("[controller]")]
     public class DireccionesController : ControllerBase
     {
-        private readonly string RutaDeListaDeDirecciones = "C:/Users/joaquin.galindo/Documents/EstadosApi/CPdescarga.xls";
+        private readonly string RutaDeListaDeDirecciones = "C:/Users/joaquin.galindo/Documents/Repositorios/EstadosApi/EstadosApi/CPdescarga.xls";
+
         [HttpGet("CodigoPostal/{CodigoPostalParametro}")]
-        public ActionResult<IEnumerable<Dictionary<string, string>>> ObtenerDireccionPorCodigoPostal(string CodigoPostalParametro)
+        public ActionResult ObtenerDireccionPorCodigoPostal(string CodigoPostalParametro, bool AgruparPorTipoDeAsentamiento = false)
         {
             List<Dictionary<string, string>> DireccionesEncontradas = new List<Dictionary<string, string>>();
+            
             using (FileStream ArchivoDeListaDirecciones = new FileStream(RutaDeListaDeDirecciones, FileMode.Open, FileAccess.Read))
             {
                 var LibroDireccionesPorEstado = new HSSFWorkbook(ArchivoDeListaDirecciones);
@@ -24,15 +30,16 @@ namespace EstadosApi.Controllers
                         var ValorEnCeldaCodigoPostal = Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ColumnaDeCodigoPostal)?.ToString();
                         if (ValorEnCeldaCodigoPostal != null && ValorEnCeldaCodigoPostal.Equals(CodigoPostalParametro, StringComparison.OrdinalIgnoreCase))
                         {
-                           Dictionary<string, string> direccion = new Dictionary<string, string>
-{
-    { "d_codigo", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ColumnaDeCodigoPostal)?.ToString() ?? "" },
-    { "d_estado", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ObtenerNombreDelCampoDeDireccion(Seccion, "d_estado"))?.ToString() ?? "" },
-    { "D_mnpio", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ObtenerNombreDelCampoDeDireccion(Seccion, "D_mnpio"))?.ToString() ?? "" },
-    { "d_tipo_asenta", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ObtenerNombreDelCampoDeDireccion(Seccion, "d_tipo_asenta"))?.ToString() ?? "" },
-    { "d_asenta", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ObtenerNombreDelCampoDeDireccion(Seccion, "d_asenta"))?.ToString() ?? "" },
-    { "d_ciudad", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ObtenerNombreDelCampoDeDireccion(Seccion, "d_ciudad"))?.ToString() ?? "" }
-};
+                            Dictionary<string, string> direccion = new Dictionary<string, string>
+                            {
+                                { "d_codigo", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ColumnaDeCodigoPostal)?.ToString() ?? "" },
+                                { "d_estado", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ObtenerNombreDelCampoDeDireccion(Seccion, "d_estado"))?.ToString() ?? "" },
+                                { "D_mnpio", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ObtenerNombreDelCampoDeDireccion(Seccion, "D_mnpio"))?.ToString() ?? "" },
+                                { "d_tipo_asenta", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ObtenerNombreDelCampoDeDireccion(Seccion, "d_tipo_asenta"))?.ToString() ?? "" },
+                                { "d_asenta", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ObtenerNombreDelCampoDeDireccion(Seccion, "d_asenta"))?.ToString() ?? "" },
+                                { "d_ciudad", Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ObtenerNombreDelCampoDeDireccion(Seccion, "d_ciudad"))?.ToString() ?? "" },
+                                { "pais", "México" }
+                            };
                             DireccionesEncontradas.Add(direccion);
                         }
                     }
@@ -40,12 +47,51 @@ namespace EstadosApi.Controllers
             }
             if (DireccionesEncontradas.Count > 0)
             {
-                return Ok(DireccionesEncontradas);
+                if (AgruparPorTipoDeAsentamiento)
+                {
+                    var direccionesAgrupadas = AgruparPorTipoAsentamiento(DireccionesEncontradas);
+                    return Ok(direccionesAgrupadas);
+                }
+                else
+                {
+                    return Ok(DireccionesEncontradas);
+                }
             }
             else
             {
                 return NotFound($"No se encontraron direcciones para el código {CodigoPostalParametro}");
             }
+        }
+        private List<Dictionary<string, object>> AgruparPorTipoAsentamiento(List<Dictionary<string, string>> direcciones)
+        {
+            var agrupadas = new List<Dictionary<string, object>>();
+
+            foreach (var direccion in direcciones)
+            {
+                var tipoAsentamiento = direccion["d_tipo_asenta"];
+                var existente = agrupadas.Find(d => d["tipo_asentamiento"].ToString() == tipoAsentamiento);
+
+                if (existente == null)
+                {
+                    var nuevoRegistro = new Dictionary<string, object>
+                    {
+                        { "cp", direccion["d_codigo"] },
+                        { "asentamiento", new List<string> { direccion["d_asenta"] } },
+                        { "tipo_asentamiento", tipoAsentamiento },
+                        { "municipio", direccion["D_mnpio"] },
+                        { "estado", direccion["d_estado"] },
+                        { "ciudad", direccion["d_ciudad"] },
+                        { "pais", "México" }
+                    };
+                    agrupadas.Add(nuevoRegistro);
+                }
+                else
+                {
+                    ((List<string>)existente["asentamiento"]).Add(direccion["d_asenta"]);
+                }
+            }
+
+            return agrupadas;
         }
         private int ObtenerNombreDelCampoDeDireccion(ISheet Secciones, string NombreColumna)
         {
