@@ -1,11 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using NPOI.HSSF.UserModel;
 using NPOI.SS.UserModel;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-
 namespace EstadosApi.Controllers
 {
     [ApiController]
@@ -13,12 +8,10 @@ namespace EstadosApi.Controllers
     public class DireccionesController : ControllerBase
     {
         private readonly string RutaDeListaDeDirecciones = "C:/Users/joaquin.galindo/Documents/Repositorios/EstadosApi/EstadosApi/CPdescarga.xls";
-
         [HttpGet("CodigoPostal/{CodigoPostalParametro}")]
         public ActionResult ObtenerDireccionPorCodigoPostal(string CodigoPostalParametro, bool AgruparPorTipoDeAsentamiento = false)
         {
             List<Dictionary<string, string>> DireccionesEncontradas = new List<Dictionary<string, string>>();
-
             using (FileStream ArchivoDeListaDirecciones = new FileStream(RutaDeListaDeDirecciones, FileMode.Open, FileAccess.Read))
             {
                 var LibroDireccionesPorEstado = new HSSFWorkbook(ArchivoDeListaDirecciones);
@@ -63,12 +56,10 @@ namespace EstadosApi.Controllers
                 return NotFound($"No se encontraron direcciones para el código {CodigoPostalParametro}");
             }
         }
-
         [HttpGet("BusquedaCP/{CriterioBusqueda}")]
         public ActionResult BuscarCodigoPostalPorCoincidencia(string CriterioBusqueda, int? limite = null)
         {
             HashSet<string> CodigosPostalesEncontrados = new HashSet<string>();
-
             using (FileStream ArchivoDeListaDirecciones = new FileStream(RutaDeListaDeDirecciones, FileMode.Open, FileAccess.Read))
             {
                 var LibroDireccionesPorEstado = new HSSFWorkbook(ArchivoDeListaDirecciones);
@@ -76,7 +67,6 @@ namespace EstadosApi.Controllers
                 {
                     var Seccion = LibroDireccionesPorEstado.GetSheetAt(NumeroDeSeccionDelLibro);
                     var ColumnaDeCodigoPostal = ObtenerNombreDelCampoDeDireccion(Seccion, "d_codigo");
-
                     for (int NumeroDeFilaEnSeccion = 1; NumeroDeFilaEnSeccion <= Seccion.LastRowNum; NumeroDeFilaEnSeccion++)
                     {
                         var ValorEnCeldaCodigoPostal = Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ColumnaDeCodigoPostal)?.ToString();
@@ -95,7 +85,6 @@ namespace EstadosApi.Controllers
                     }
                 }
             }
-
             if (CodigosPostalesEncontrados.Count > 0)
             {
                 return Ok(new
@@ -111,12 +100,10 @@ namespace EstadosApi.Controllers
                 return NotFound($"No se encontraron códigos postales para el criterio de búsqueda {CriterioBusqueda}");
             }
         }
-
         [HttpGet("get_estados")]
         public ActionResult ObtenerEstados()
         {
             HashSet<string> EstadosEncontrados = new HashSet<string>();
-
             using (FileStream ArchivoDeListaDirecciones = new FileStream(RutaDeListaDeDirecciones, FileMode.Open, FileAccess.Read))
             {
                 var LibroDireccionesPorEstado = new HSSFWorkbook(ArchivoDeListaDirecciones);
@@ -124,7 +111,6 @@ namespace EstadosApi.Controllers
                 {
                     var Seccion = LibroDireccionesPorEstado.GetSheetAt(NumeroDeSeccionDelLibro);
                     var ColumnaDeEstado = ObtenerNombreDelCampoDeDireccion(Seccion, "d_estado");
-
                     for (int NumeroDeFilaEnSeccion = 1; NumeroDeFilaEnSeccion <= Seccion.LastRowNum; NumeroDeFilaEnSeccion++)
                     {
                         var ValorEnCeldaEstado = Seccion.GetRow(NumeroDeFilaEnSeccion)?.GetCell(ColumnaDeEstado)?.ToString();
@@ -135,7 +121,6 @@ namespace EstadosApi.Controllers
                     }
                 }
             }
-
             if (EstadosEncontrados.Count > 0)
             {
                 return Ok(new
@@ -151,16 +136,13 @@ namespace EstadosApi.Controllers
                 return NotFound("No se encontraron estados en el archivo.");
             }
         }
-
         private List<Dictionary<string, object>> AgruparPorTipoAsentamiento(List<Dictionary<string, string>> direcciones)
         {
             var agrupadas = new List<Dictionary<string, object>>();
-
             foreach (var direccion in direcciones)
             {
                 var tipoAsentamiento = direccion["d_tipo_asenta"];
                 var existente = agrupadas.Find(d => d["tipo_asentamiento"].ToString() == tipoAsentamiento);
-
                 if (existente == null)
                 {
                     var nuevoRegistro = new Dictionary<string, object>
@@ -180,10 +162,8 @@ namespace EstadosApi.Controllers
                     ((List<string>)existente["asentamiento"]).Add(direccion["d_asenta"]);
                 }
             }
-
             return agrupadas;
         }
-
         private int ObtenerNombreDelCampoDeDireccion(ISheet Secciones, string NombreColumna)
         {
             var FilaConLosNombresDeCampos = Secciones.GetRow(0);
